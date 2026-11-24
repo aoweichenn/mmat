@@ -1,0 +1,61 @@
+# mmat 静态分析配置（clang-tidy 22.1.8）。
+#
+# 设计原则：clang-tidy 只负责**正确性**，不重复本库已有的本地闸门。
+#
+# 已有脚本覆盖的维度，这里刻意关掉，避免两套规则互相打架：
+#   scripts/check-magic-numbers.py   裸字面量（等效 readability-magic-numbers，
+#                                    但允许的例外不同：本库允许 0/1/2）
+#   scripts/check-headers.py         include 尖括号、裸 int、头自包含
+#   scripts/check-layers.sh          分层依赖
+#   scripts/format.sh                clang-format 决定布局
+#   scripts/check-no-printf.py       src/ 下禁止直接输出
+#
+# 同理关闭的还有命名检查：本库按全局约定用 PascalCase 类型 / snake_case 函数 /
+# kPascalCase 常量，与外部工程的命名约定不一致。
+# 命名由 docs/00-conventions/CODE-STYLE.md 约束，不靠 clang-tidy 机械强制。
+
+Checks: >
+  -*,
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-branch-clone,
+  clang-analyzer-*,
+  performance-*,
+  portability-*,
+  modernize-use-integer-sign-comparison,
+  modernize-use-nullptr,
+  modernize-use-override,
+  -misc-const-correctness,
+  misc-misplaced-const,
+  misc-uniqueptr-reset-release,
+  misc-unused-using-decls,
+  readability-container-contains,
+  readability-redundant-smartptr-get,
+  readability-uniqueptr-delete-release
+
+# 与"这个库长什么样"有冲突的具体检查，逐条说明理由。
+#
+# bugprone-easily-swappable-parameters：Mat 的 (w, h, c, d) / (x, n) 参数顺序
+# 由 ncnn 公共 API 固定，不能为了静态分析改签名。
+# bugprone-branch-clone：移植代码里 allocator / fast_malloc 两个分支形状相同，
+# 但调用的函数不同；该检查在宏展开后误报。
+# misc-const-correctness：MMAT_BATCH 下的局部变量是否被赋值取决于配置，
+# 静态分析在 OFF 配置下会建议加 const，加上后 ON 配置编译失败。
+CheckOptions:
+  # 位拼接与字节偏移天然出现 2/3/8/32 这类数字，本库的 check-magic-numbers.py
+  # 用"必须具名常量"的规则管这些，clang-tidy 这里不再重复。
+  - key: misc-const-correctness.InPlace
+    value: 'false'
+  # wire-format 结构体的构造函数按字段顺序收参数最直观，
+  # 8 个参数（名字/method/crc/csize/usize/offset/flags/zip64）是这一层的事实。
+  - key: readability-function-size.ParameterThreshold
+    value: '9'
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '(include/mmat|src)/.*'
+FormatStyle: file
+
+# zlib-ng 与 GTest 的头由 -isystem 引入，但仍会出现在某些诊断里；
+# 第三方目录一律不分析。
+SystemHeaders: true

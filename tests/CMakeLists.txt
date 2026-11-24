@@ -1,0 +1,15 @@
+find_package(GTest CONFIG REQUIRED)
+if(GTest_VERSION VERSION_LESS "1.17.0")
+    message(FATAL_ERROR "GTest >= 1.17.0 required, found ${GTest_VERSION} at ${GTest_DIR}")
+endif()
+
+add_library(mmat_test_main STATIC support/gtest_main.cpp)
+target_link_libraries(mmat_test_main PUBLIC GTest::gtest)
+target_compile_options(mmat_test_main PRIVATE ${MMAT_WARNINGS})
+
+add_executable(mmat_mat_tests unit/mat_tests.cpp)
+target_link_libraries(mmat_mat_tests PRIVATE mmat::mmat mmat_test_main)
+target_compile_options(mmat_mat_tests PRIVATE ${MMAT_WARNINGS})
+target_compile_definitions(mmat_mat_tests PRIVATE MMAT_BATCH=$<BOOL:${MMAT_BATCH}>)
+add_test(NAME mmat_mat_tests COMMAND mmat_mat_tests)
+set_tests_properties(mmat_mat_tests PROPERTIES LABELS "unit;mat" TIMEOUT 30)

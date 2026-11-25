@@ -13,7 +13,9 @@
 #include <cstdlib>
 #include <cstring>
 
+#if defined(_MSC_VER)
 #include <atomic>
+#endif
 
 #include <mmat/config.hpp>
 #include <mmemory/allocator.hpp>
@@ -44,7 +46,13 @@ namespace mmat {
 namespace detail {
 
 inline std::int32_t xadd(std::int32_t* addr, std::int32_t delta) noexcept {
+    // Compiler intrinsics keep this usable with older libc++ (e.g. NDK r27,
+    // which predates std::atomic_ref).
+#if defined(_MSC_VER)
     return std::atomic_ref<std::int32_t>(*addr).fetch_add(delta, std::memory_order_acq_rel);
+#else
+    return __atomic_fetch_add(addr, delta, __ATOMIC_ACQ_REL);
+#endif
 }
 
 // SIMD fill lane counts. The overload definitions live in this header because
